@@ -2,6 +2,7 @@ class StockAnalyzerModel:
     def __init__(self):
         pass
 
+    
     def comment_pe(self, value):
         if value is None: return "P/E ratio data not available."
         if value < 15: return f"The P/E ratio of {value} suggests the stock is cheap relative to earnings."
@@ -63,24 +64,69 @@ class StockAnalyzerModel:
         if value is None: return "Book value per share data not available."
         return f"The book value per share of {value} is a measure of the company's net asset value on a per-share basis."
 
-    # ----- Evaluation method -----
+    
+    def _f(self, metric, thresholds):
+        for limit, score in thresholds:
+            if metric <= limit:
+                return score
+        return thresholds[-1][1]
+
+    def _g(self, metric, thresholds):
+        for limit, score in thresholds:
+            if metric <= limit:
+                return score
+        return thresholds[-1][1]
+
+    
     def evaluate(self, stock: dict):
+        pe = stock.get("priceEarningsRatio")
+        dy = stock.get("dividendYield")
+        bv = stock.get("bookValuePerShare")
+        roe = stock.get("returnOnEquity")
+        roa = stock.get("returnOnAssets")
+        quick = stock.get("quickRatio")
+        current = stock.get("currentRatio")
+        de = stock.get("debtToEquityRatio")
+
+        
+        v_pe = self._g(pe or 0, [(10, 20), (20, 15), (30, 10), (100, 5), (9999, 0)])
+        v_dy = self._g(dy or 0, [(0.5, 5), (1.5, 10), (3, 15), (10, 20), (999, 20)])
+        v_bv = self._g(bv or 0, [(5, 5), (20, 10), (50, 15), (200, 20), (9999, 20)])
+        value_score = v_pe + v_dy + v_bv
+
+        
+        q_roe = self._f((roe or 0) * 100, [(5, 5), (10, 10), (20, 15), (999, 20)])
+        q_roa = self._f((roa or 0) * 100, [(3, 5), (7, 10), (12, 15), (999, 20)])
+        q_quick = self._f(quick or 0, [(0.8, 5), (1.5, 10), (2.5, 15), (999, 20)])
+        q_current = self._f(current or 0, [(1, 5), (2, 10), (3, 15), (999, 20)])
+        q_de = self._f(de or 0, [(0.5, 20), (1.5, 15), (3, 10), (999, 5)])
+        quality_score = q_roe + q_roa + q_quick + q_current + q_de
+
+        
+        overall = round(0.6 * quality_score + 0.4 * value_score)
+        overall = max(0, min(100, overall))
+
+        
         feedback = {
-            "priceEarningsRatio": self.comment_pe(stock.get("priceEarningsRatio")),
-            "earningsPerShare": self.comment_eps(stock.get("earningsPerShare")),
-            "dividendYield": self.comment_dy(stock.get("dividendYield")),
-            "marketCap": self.comment_mc(stock.get("marketCap")),
-            "debtToEquityRatio": self.comment_de(stock.get("debtToEquityRatio")),
-            "returnOnEquity": self.comment_roe(stock.get("returnOnEquity")),
-            "returnOnAssets": self.comment_roa(stock.get("returnOnAssets")),
-            "currentRatio": self.comment_current(stock.get("currentRatio")),
-            "quickRatio": self.comment_quick(stock.get("quickRatio")),
-            "bookValuePerShare": self.comment_bv(stock.get("bookValuePerShare"))
+            "P/E": self.comment_pe(pe),
+            "EPS": self.comment_eps(stock.get("earningsPerShare")),
+            "DividendYield": self.comment_dy(dy),
+            "MarketCap": self.comment_mc(stock.get("marketCap")),
+            "DebtToEquity": self.comment_de(de),
+            "ROE": self.comment_roe(roe),
+            "ROA": self.comment_roa(roa),
+            "CurrentRatio": self.comment_current(current),
+            "QuickRatio": self.comment_quick(quick),
+            "BookValue": self.comment_bv(bv),
         }
 
-        summary = " ".join(feedback.values())
+        summary = f"Stock {" ".join(feedback.values())} → Quality={quality_score}, Value={value_score}, Overall={overall}."
+
         return {
             "stockSymbol": stock.get("stockSymbol", "Unknown"),
+            "quality": quality_score,
+            "value": value_score,
+            "overall": overall,
             "feedback": feedback,
-            "summary": summary
+            "summary": summary,
         }
