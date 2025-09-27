@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
 import {
   TrendingUp,
@@ -7,6 +7,7 @@ import {
   BarChart3,
   Layers,
   Search,
+  Download,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import Confetti from "react-confetti";
@@ -26,8 +27,8 @@ ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Title, Legend)
 function Glass({ children, className = "" }) {
   return (
     <div
-      className={`rounded-3xl border border-slate-200 bg-white/80 p-6 
-      dark:bg-slate-900/80 dark:border-slate-800 shadow-xl backdrop-blur-md ${className}`}
+      className={`rounded-3xl border border-slate-200 bg-white/90 p-6 
+      dark:bg-slate-900/90 dark:border-slate-800 shadow-xl backdrop-blur-md ${className}`}
     >
       {children}
     </div>
@@ -69,20 +70,6 @@ function Radial({ value, label }) {
   );
 }
 
-function ToggleButton({ label, active, onClick }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`px-4 py-2 rounded-2xl text-sm font-semibold transition ${
-        active
-          ? "bg-indigo-600 text-white shadow-lg"
-          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-      }`}
-    >
-      {label}
-    </button>
-  );
-}
 
 function StockResult({ result, addToWatchlist }) {
   return (
@@ -152,7 +139,6 @@ function StockResult({ result, addToWatchlist }) {
   );
 }
 
-
 function StocksPage() {
   const [all, setAll] = useState([]);
   const [q, setQ] = useState("");
@@ -177,72 +163,8 @@ function StocksPage() {
         setResult(res.data);
         setBoom(res.data.overall >= 75);
       })
-      .catch((err) => console.error(err));
+      .catch(console.error);
   }, [sel]);
-
-  useEffect(() => {
-    if (all.length === 0) return;
-    Promise.all(
-      all.map((s) =>
-        axios
-          .post("http://127.0.0.1:8000/evaluate", { stockSymbol: s.stockSymbol })
-          .then((r) => r.data)
-          .catch(() => null)
-      )
-    ).then((r) => {
-      const valid = r.filter(Boolean);
-      const sorted = valid.sort((a, b) => b.overall - a.overall);
-      setRanking(sorted);
-    });
-  }, [all]);
-
-  const filtered = useMemo(
-    () =>
-      all.filter((x) =>
-        (x.stockSymbol || "").toLowerCase().includes(q.toLowerCase())
-      ),
-    [all, q]
-  );
-
-  const chartData = {
-    labels: ranking.map((r) => r.stockSymbol),
-    datasets: [
-      {
-        label: `${metric.toUpperCase()} Score`,
-        data: ranking.map((r) => r[metric]),
-        backgroundColor: ranking.map((r) =>
-          sel && sel.stockSymbol === r.stockSymbol
-            ? "rgba(79,70,229,0.9)" 
-            : r[metric] >= 75
-            ? "rgba(34,197,94,0.8)" 
-            : r[metric] >= 55
-            ? "rgba(245,158,11,0.8)" 
-            : "rgba(239,68,68,0.8)" 
-        ),
-        borderRadius: 8,
-      },
-    ],
-  };
-
-  const chartOptions = {
-    responsive: true,
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        callbacks: {
-          label: (ctx) =>
-            ctx.label === result?.stockSymbol
-              ? `⭐ ${ctx.raw}/100 (Selected)`
-              : `${ctx.raw}/100`,
-        },
-      },
-    },
-    scales: { y: { beginAtZero: true, max: 100 } },
-    animation: {
-      duration: 900,
-      easing: "easeOutBounce",
-    },
-  };
 
   return (
     <div className="grid xl:grid-cols-3 gap-6">
@@ -260,22 +182,23 @@ function StocksPage() {
           className="w-full mb-3 rounded-2xl px-3 py-2 border border-slate-200"
         />
         <div className="max-h-[70vh] overflow-auto grid grid-cols-2 gap-2">
-          {filtered.map((s, idx) => (
-            <button
-              key={s.stockSymbol + idx}
-              onClick={() => setSel(s)}
-              className={`rounded-2xl border px-3 py-2 transition text-left ${
-                sel && sel.stockSymbol === s.stockSymbol
-                  ? "bg-indigo-100 border-indigo-400"
-                  : "bg-white/70 dark:bg-slate-800 border-slate-200 hover:bg-indigo-50"
-              }`}
-            >
-              <div className="font-semibold">{s.stockSymbol}</div>
-              <div className="text-[11px] text-slate-500">
-                P/E: {s.parameters?.priceEarningsRatio}
-              </div>
-            </button>
-          ))}
+          {all
+            .filter((x) =>
+              (x.stockSymbol || "").toLowerCase().includes(q.toLowerCase())
+            )
+            .map((s, idx) => (
+              <button
+                key={s.stockSymbol + idx}
+                onClick={() => setSel(s)}
+                className={`rounded-2xl border px-3 py-2 transition text-left ${
+                  sel && sel.stockSymbol === s.stockSymbol
+                    ? "bg-indigo-100 border-indigo-400"
+                    : "bg-white/70 dark:bg-slate-800 border-slate-200 hover:bg-indigo-50"
+                }`}
+              >
+                <div className="font-semibold">{s.stockSymbol}</div>
+              </button>
+            ))}
         </div>
       </Glass>
 
@@ -289,41 +212,6 @@ function StocksPage() {
             <StockResult result={result} addToWatchlist={() => {}} />
           )}
         </Glass>
-
-        {ranking.length > 0 && (
-          <Glass>
-            <div className="flex flex-col gap-4">
-              <div className="flex gap-3 flex-wrap">
-                <Pill
-                  icon={Gauge}
-                  label="Overall"
-                  value={`${result?.overall || ranking[0].overall}/100`}
-                  tone="emerald"
-                  onClick={() => setMetric("overall")}
-                />
-                <Pill
-                  icon={BarChart3}
-                  label="Quality"
-                  value={`${result?.quality || ranking[0].quality}/100`}
-                  tone="amber"
-                  onClick={() => setMetric("quality")}
-                />
-                <Pill
-                  icon={Layers}
-                  label="Value"
-                  value={`${result?.value || ranking[0].value}/100`}
-                  tone="amber"
-                  onClick={() => setMetric("value")}
-                />
-              </div>
-
-              <div>
-                <h3 className="font-bold mb-2">Stock Ranking ({metric})</h3>
-                <Bar data={chartData} options={chartOptions} />
-              </div>
-            </div>
-          </Glass>
-        )}
       </div>
 
       {boom && <Confetti numberOfPieces={220} recycle={false} gravity={0.25} />}
@@ -333,15 +221,140 @@ function StocksPage() {
 
 
 function DigitalPortfolioPage() {
+  const [clients, setClients] = useState([]);
+  const [selectedClient, setSelectedClient] = useState(null);
+  const [analysis, setAnalysis] = useState(null);
+
+  useEffect(() => {
+    axios
+      .get("http://127.0.0.1:8000/clients")
+      .then((res) => setClients(res.data.slice(0, 10))) 
+      .catch(console.error);
+  }, []);
+
+  const fetchAnalysis = (clientId) => {
+    setSelectedClient(clientId);
+    axios
+      .get(`http://127.0.0.1:8000/portfolio/${clientId}/analysis`)
+      .then((res) => setAnalysis(res.data))
+      .catch(console.error);
+  };
+
+  const downloadJSON = () => {
+    if (!analysis) return;
+    const dataStr =
+      "data:text/json;charset=utf-8," +
+      encodeURIComponent(JSON.stringify(analysis, null, 2));
+    const dlAnchorElem = document.createElement("a");
+    dlAnchorElem.setAttribute("href", dataStr);
+    dlAnchorElem.setAttribute(
+      "download",
+      `portfolio_${selectedClient}.json`
+    );
+    dlAnchorElem.click();
+  };
+
+  const sectorChartData = {
+    labels: analysis ? Object.keys(analysis.sector_distribution) : [],
+    datasets: [
+      {
+        label: "Sector % Distribution",
+        data: analysis ? Object.values(analysis.sector_distribution) : [],
+        backgroundColor: [
+          "#6366F1",
+          "#10B981",
+          "#F59E0B",
+          "#EF4444",
+          "#8B5CF6",
+          "#F43F5E",
+        ],
+      },
+    ],
+  };
+
+  const sectorChartOptions = {
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+    },
+    scales: { y: { beginAtZero: true, max: 100 } },
+  };
+
   return (
-    <Glass>
-      <h2 className="text-xl font-bold">Digital Portfolio (Coming Soon)</h2>
-    </Glass>
+    <div className="grid md:grid-cols-3 gap-6">
+      <Glass className="md:col-span-1">
+        <h3 className="font-bold mb-3">Clients</h3>
+        <div className="space-y-2 max-h-[70vh] overflow-auto">
+          {clients.map((c) => (
+            <button
+              key={c.clientId}
+              onClick={() => fetchAnalysis(c.clientId)}
+              className={`w-full text-left px-3 py-2 rounded-2xl border ${
+                selectedClient === c.clientId
+                  ? "bg-indigo-100 border-indigo-400"
+                  : "bg-white/70 dark:bg-slate-800 border-slate-200 hover:bg-indigo-50"
+              }`}
+            >
+              {c.clientId} – {c.currency}
+            </button>
+          ))}
+        </div>
+      </Glass>
+
+      <div className="md:col-span-2">
+        {!analysis ? (
+          <Glass>
+            <div className="h-64 flex items-center justify-center text-slate-500">
+              Select a client to view portfolio analysis.
+            </div>
+          </Glass>
+        ) : (
+          <Glass>
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="font-bold text-lg">
+                Portfolio Analysis – {selectedClient}
+              </h3>
+              <button
+                onClick={downloadJSON}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700"
+              >
+                <Download className="h-4 w-4" /> Download JSON
+              </button>
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-4 mb-4">
+              <Radial
+                value={analysis.fund_overlap_score}
+                label="Fund Overlap Score"
+              />
+              <Radial value={analysis.sector_score} label="Sector Score" />
+              <Radial
+                value={analysis.final_diversification_score}
+                label="Final Diversification Score"
+              />
+            </div>
+
+            <div className="mb-4">
+              <h4 className="font-semibold mb-2">Sector Distribution (%)</h4>
+              <Bar data={sectorChartData} options={sectorChartOptions} />
+            </div>
+
+            <div className="mb-4">
+              <h4 className="font-semibold mb-2">Raw Analysis Data</h4>
+              <pre className="max-h-60 overflow-auto p-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs">
+                {JSON.stringify(analysis, null, 2)}
+              </pre>
+            </div>
+          </Glass>
+        )}
+      </div>
+    </div>
   );
 }
 
+
 export default function App() {
-  const [page, setPage] = useState("menu");
+  const [page, setPage] = React.useState("menu");
 
   return (
     <div className="min-h-screen p-6 bg-gradient-to-br from-indigo-100 via-white to-indigo-50 dark:from-slate-900 dark:to-slate-800">
