@@ -5,9 +5,9 @@ const cors = require("cors");
 
 const app = express();
 app.use(express.json());
-app.use(cors()); // Allow frontend to fetch
+app.use(cors()); 
 
-// MySQL connection pool
+
 const db = mysql.createPool({
   host: "localhost",
   user: "taskmanager",
@@ -15,7 +15,7 @@ const db = mysql.createPool({
   database: "stock_analyzer"
 });
 
-// Endpoint to fetch all stocks (for list & bar chart)
+
 app.get("/stocks", async (req, res) => {
   try {
     const [rows] = await db.query("SELECT * FROM stocks ORDER BY stockSymbol ASC");
@@ -26,7 +26,7 @@ app.get("/stocks", async (req, res) => {
   }
 });
 
-// Endpoint to evaluate a single stock
+
 app.post("/evaluate", async (req, res) => {
   const { stockSymbol } = req.body;
   if (!stockSymbol) return res.status(400).json({ error: "stockSymbol is required" });
@@ -37,7 +37,7 @@ app.post("/evaluate", async (req, res) => {
 
     const stock = rows[0];
 
-    // Convert NULLs to 0 or handle gracefully in evaluator
+    
     for (let key in stock) {
       if (stock[key] === null && key !== "id" && key !== "stockSymbol") stock[key] = null;
     }
